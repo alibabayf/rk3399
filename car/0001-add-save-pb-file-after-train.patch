@@ -1,0 +1,103 @@
+From 1d4cf4c45be3f877a88b6dcf20b839f819cfa351 Mon Sep 17 00:00:00 2001
+From: Lin Jinhan <troy.lin@rock-chips.com>
+Date: Wed, 13 Feb 2019 11:08:30 +0800
+Subject: [PATCH] add save pb file after train
+
+Signed-off-by: Lin Jinhan <troy.lin@rock-chips.com>
+---
+ train-license-digits.py   | 12 ++++++++----
+ train-license-province.py | 13 ++++++++-----
+ 2 files changed, 16 insertions(+), 9 deletions(-)
+
+diff --git a/train-license-digits.py b/train-license-digits.py
+index b66d87d..1c27e2e 100644
+--- a/train-license-digits.py
++++ b/train-license-digits.py
+@@ -7,7 +7,8 @@ import random
+   
+ import numpy as np  
+ import tensorflow as tf  
+-  
++from tensorflow.python.framework import graph_util
++
+ from PIL import Image  
+   
+   
+@@ -134,7 +135,7 @@ if __name__ =='__main__' and sys.argv[1]=='train':
+   
+   
+         # dropout  
+-        keep_prob = tf.placeholder(tf.float32)  
++        keep_prob = tf.placeholder_with_default(1.0, shape=(), name="keep_prob")
+   
+         h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)  
+   
+@@ -144,7 +145,8 @@ if __name__ =='__main__' and sys.argv[1]=='train':
+         b_fc2 = tf.Variable(tf.constant(0.1, shape=[NUM_CLASSES]), name="b_fc2")  
+   
+         # 定义优化器和训练op  
+-        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2  
++        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
++        prob = tf.nn.softmax(y_conv, name="probability")
+         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))  
+         train_step = tf.train.AdamOptimizer((1e-4)).minimize(cross_entropy)  
+   
+@@ -195,7 +197,9 @@ if __name__ =='__main__' and sys.argv[1]=='train':
+         # 初始化saver  
+         saver = tf.train.Saver()              
+         saver_path = saver.save(sess, "%smodel.ckpt"%(SAVER_DIR))  
+-  
++        output_graph_def = graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=['probability'])
++        with tf.gfile.FastGFile(SAVER_DIR+ '/lpr_predict.pb', mode='wb') as f:
++            f.write(output_graph_def.SerializeToString())
+   
+   
+ if __name__ =='__main__' and sys.argv[1]=='predict':  
+diff --git a/train-license-province.py b/train-license-province.py
+index b911ac9..0cc6eeb 100644
+--- a/train-license-province.py
++++ b/train-license-province.py
+@@ -9,8 +9,8 @@ import numpy as np
+ import tensorflow as tf  
+   
+ from PIL import Image  
+-  
+-  
++from tensorflow.python.framework import graph_util
++
+ SIZE = 1280  
+ WIDTH = 32  
+ HEIGHT = 40  
+@@ -134,7 +134,7 @@ if __name__ =='__main__' and sys.argv[1]=='train':
+   
+   
+         # dropout  
+-        keep_prob = tf.placeholder(tf.float32)  
++        keep_prob = tf.placeholder_with_default(1.0, shape=(), name="keep_prob")
+   
+         h_fc1_drop = tf.nn.dropout(h_fc1, keep_prob)  
+   
+@@ -144,7 +144,8 @@ if __name__ =='__main__' and sys.argv[1]=='train':
+         b_fc2 = tf.Variable(tf.constant(0.1, shape=[NUM_CLASSES]), name="b_fc2")  
+   
+         # 定义优化器和训练op  
+-        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2  
++        y_conv = tf.matmul(h_fc1_drop, W_fc2) + b_fc2
++        prob = tf.nn.softmax(y_conv, name="probability")
+         cross_entropy = tf.reduce_mean(tf.nn.softmax_cross_entropy_with_logits(labels=y_, logits=y_conv))  
+         train_step = tf.train.AdamOptimizer((1e-4)).minimize(cross_entropy)  
+   
+@@ -196,7 +197,9 @@ if __name__ =='__main__' and sys.argv[1]=='train':
+             print ('不存在训练数据保存目录，现在创建保存目录')  
+             os.makedirs(SAVER_DIR)  
+         saver_path = saver.save(sess, "%smodel.ckpt"%(SAVER_DIR))  
+-  
++        output_graph_def = graph_util.convert_variables_to_constants(sess, sess.graph_def, output_node_names=['probability'])
++        with tf.gfile.FastGFile(SAVER_DIR+ '/lpr_predict.pb', mode='wb') as f:
++            f.write(output_graph_def.SerializeToString())
+   
+   
+ if __name__ =='__main__' and sys.argv[1]=='predict':  
+-- 
+2.17.1
+
